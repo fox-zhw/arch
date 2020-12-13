@@ -4,13 +4,17 @@ import androidx.hilt.lifecycle.ViewModelInject;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.ViewModel;
 
+import com.qthy.arch.base.BaseViewModel;
 import com.qthy.arch.data.Task;
 import com.qthy.arch.data.source.TasksDataSource;
 import com.qthy.arch.data.source.TasksRepository;
 
 import java.util.List;
 
-public class StatisticsViewModel extends ViewModel {
+import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.Consumer;
+
+public class StatisticsViewModel extends BaseViewModel {
 	
 	final MutableLiveData<Boolean> mDataLoading = new MutableLiveData<>();
 	
@@ -30,6 +34,7 @@ public class StatisticsViewModel extends ViewModel {
 	
 	@ViewModelInject
 	public StatisticsViewModel(TasksRepository tasksRepository) {
+		super();
 		mTasksRepository = tasksRepository;
 	}
 	
@@ -40,19 +45,18 @@ public class StatisticsViewModel extends ViewModel {
 	public void loadStatistics() {
 		mDataLoading.setValue(true);
 		
-		mTasksRepository.getTasks(new TasksDataSource.LoadTasksCallback() {
+		addDisposable(mTasksRepository.getTasks(), new Consumer<List<Task>>() {
 			@Override
-			public void onTasksLoaded(List<Task> tasks) {
-				mError.setValue(false);
-				computeStats(tasks);
-			}
-			
-			@Override
-			public void onDataNotAvailable() {
-				mError.setValue(true);
-				mNumberOfActiveTasks = 0;
-				mNumberOfCompletedTasks = 0;
-				updateDataBindingObservables();
+			public void accept(List<Task> tasks) throws Exception {
+				if (tasks.isEmpty()) {
+					mError.setValue(true);
+					mNumberOfActiveTasks = 0;
+					mNumberOfCompletedTasks = 0;
+					updateDataBindingObservables();
+				} else {
+					mError.setValue(false);
+					computeStats(tasks);
+				}
 			}
 		});
 	}

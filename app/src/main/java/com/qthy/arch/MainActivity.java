@@ -24,13 +24,22 @@ public class MainActivity extends BaseActivity {
 	private AppBarConfiguration mAppBarConfiguration;
 	
 	@Override
-	protected void onCreate(Bundle savedInstanceState) {
-		super.onCreate(savedInstanceState);
-		setContentView(R.layout.activity_main);
-		
-		Toolbar toolbar = findViewById(R.id.toolbar);
-		setSupportActionBar(toolbar);
-
+	protected int getNavCtrlResId() {
+		return R.id.nav_host_fragment;
+	}
+	
+	@Override
+	protected int getLayoutResId() {
+		return R.layout.activity_main;
+	}
+	
+	@Override
+	protected int getToolbarResId() {
+		return R.id.toolbar;
+	}
+	
+	@Override
+	protected void initView(Bundle savedInstanceState) {
 		DrawerLayout drawer = findViewById(R.id.drawer_layout);
 		drawer.setStatusBarBackground(R.color.colorPrimaryDark);
 		NavigationView navigationView = findViewById(R.id.nav_view);
@@ -40,7 +49,6 @@ public class MainActivity extends BaseActivity {
 				R.id.tasksFragment, R.id.statisticsFragment)
 				.setDrawerLayout(drawer)
 				.build();
-		NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment);
 		NavigationUI.setupActionBarWithNavController(this, navController, mAppBarConfiguration);
 		NavigationUI.setupWithNavController(navigationView, navController);
 	}

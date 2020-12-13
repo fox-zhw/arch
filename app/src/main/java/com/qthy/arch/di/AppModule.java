@@ -52,9 +52,8 @@ public class AppModule {
 	@Singleton
 	@BindLocalDataSource
 	@Provides
-	TasksDataSource provideTasksRepository(AppExecutors appExecutors,
-	                                       @NonNull TasksDao tasksDao) {
-		return new TasksLocalDataSource(appExecutors, tasksDao);
+	TasksDataSource provideTasksRepository(@NonNull TasksDao tasksDao) {
+		return new TasksLocalDataSource(tasksDao);
 	}
 	
 	@Singleton
@@ -65,8 +64,8 @@ public class AppModule {
 				.build().taskDao();
 	}
 	
-	@Provides
-	AppExecutors provideAppExecutors() {
-		return new AppExecutors();
-	}
+//	@Provides
+//	AppExecutors provideAppExecutors() {
+//		return new AppExecutors();
+//	}
 }

@@ -2,18 +2,22 @@ package com.qthy.arch.data.source.local;
 
 import androidx.annotation.NonNull;
 
-
 import com.qthy.arch.data.Task;
 import com.qthy.arch.data.source.TasksDataSource;
-import com.qthy.arch.util.AppExecutors;
+import com.qthy.arch.util.RxUtils;
 
 import java.util.List;
 
 import javax.inject.Inject;
 
+import io.reactivex.Flowable;
+import io.reactivex.Observable;
+import io.reactivex.ObservableEmitter;
+import io.reactivex.ObservableOnSubscribe;
+import io.reactivex.disposables.Disposable;
+import io.reactivex.functions.Action;
+import io.reactivex.functions.Consumer;
 import timber.log.Timber;
-
-import static kotlin.jvm.internal.Intrinsics.checkNotNull;
 
 /**
  * @author zhaohw
@@ -21,18 +25,12 @@ import static kotlin.jvm.internal.Intrinsics.checkNotNull;
  */
 public class TasksLocalDataSource implements TasksDataSource {
 	
-	private static volatile TasksLocalDataSource INSTANCE;
-	
 	private TasksDao mTasksDao;
-	
-	private AppExecutors mAppExecutors;
 	
 	// Prevent direct instantiation.
 	@Inject
-	public TasksLocalDataSource(@NonNull AppExecutors appExecutors,
-	                            @NonNull TasksDao tasksDao) {
+	public TasksLocalDataSource(@NonNull TasksDao tasksDao) {
 		Timber.i("TasksLocalDataSource: ");
-		mAppExecutors = appExecutors;
 		mTasksDao = tasksDao;
 	}
 	
@@ -41,26 +39,8 @@ public class TasksLocalDataSource implements TasksDataSource {
 	 * or the table is empty.
 	 */
 	@Override
-	public void getTasks(@NonNull final LoadTasksCallback callback) {
-		Runnable runnable = new Runnable() {
-			@Override
-			public void run() {
-				final List<Task> tasks = mTasksDao.getTasks();
-				mAppExecutors.mainThread().execute(new Runnable() {
-					@Override
-					public void run() {
-						if (tasks.isEmpty()) {
-							// This will be called if the table is new or just empty.
-							callback.onDataNotAvailable();
-						} else {
-							callback.onTasksLoaded(tasks);
-						}
-					}
-				});
-			}
-		};
-		
-		mAppExecutors.diskIO().execute(runnable);
+	public Flowable<List<Task>> getTasks() {
+		return mTasksDao.getTasks();
 	}
 	
 	/**
@@ -69,14 +49,10 @@ public class TasksLocalDataSource implements TasksDataSource {
 	 */
 	@Override
 	public void getTask(@NonNull final String taskId, @NonNull final GetTaskCallback callback) {
-		Runnable runnable = new Runnable() {
-			@Override
-			public void run() {
-				final Task task = mTasksDao.getTaskById(taskId);
-				
-				mAppExecutors.mainThread().execute(new Runnable() {
+		Disposable subscribe = mTasksDao.getTaskById(taskId)
+				.subscribe(new Consumer<Task>() {
 					@Override
-					public void run() {
+					public void accept(Task task) throws Exception {
 						if (task != null) {
 							callback.onTaskLoaded(task);
 						} else {
@@ -84,34 +60,30 @@ public class TasksLocalDataSource implements TasksDataSource {
 						}
 					}
 				});
-			}
-		};
-		
-		mAppExecutors.diskIO().execute(runnable);
 	}
 	
 	@Override
 	public void saveTask(@NonNull final Task task) {
-		checkNotNull(task);
-		Runnable saveRunnable = new Runnable() {
-			@Override
-			public void run() {
-				mTasksDao.insertTask(task);
-			}
-		};
-		mAppExecutors.diskIO().execute(saveRunnable);
+		Disposable subscribe = mTasksDao.insertTask(task)
+				.subscribe(new Action() {
+					@Override
+					public void run() throws Exception {
+						// complete
+						Timber.i("saveTask complete");
+					}
+				});
 	}
 	
 	@Override
 	public void completeTask(@NonNull final Task task) {
-		Runnable completeRunnable = new Runnable() {
-			@Override
-			public void run() {
-				mTasksDao.updateCompleted(task.getId(), true);
-			}
-		};
-		
-		mAppExecutors.diskIO().execute(completeRunnable);
+		Disposable subscribe = mTasksDao.updateCompleted(task.getId(), true)
+				.subscribe(new Action() {
+					@Override
+					public void run() throws Exception {
+						// complete
+						Timber.i("completeTask complete");
+					}
+				});
 	}
 	
 	@Override
@@ -122,13 +94,14 @@ public class TasksLocalDataSource implements TasksDataSource {
 	
 	@Override
 	public void activateTask(@NonNull final Task task) {
-		Runnable activateRunnable = new Runnable() {
-			@Override
-			public void run() {
-				mTasksDao.updateCompleted(task.getId(), false);
-			}
-		};
-		mAppExecutors.diskIO().execute(activateRunnable);
+		Disposable subscribe = mTasksDao.updateCompleted(task.getId(), false)
+				.subscribe(new Action() {
+					@Override
+					public void run() throws Exception {
+						// complete
+						Timber.i("activateTask complete");
+					}
+				});
 	}
 	
 	@Override
@@ -139,15 +112,18 @@ public class TasksLocalDataSource implements TasksDataSource {
 	
 	@Override
 	public void clearCompletedTasks() {
-		Runnable clearTasksRunnable = new Runnable() {
+		Disposable subscribe = Observable.create(new ObservableOnSubscribe<Integer>() {
 			@Override
-			public void run() {
-				mTasksDao.deleteCompletedTasks();
-				
+			public void subscribe(ObservableEmitter<Integer> emitter) throws Exception {
+				int i = mTasksDao.deleteCompletedTasks();
+				emitter.onNext(i);
 			}
-		};
-		
-		mAppExecutors.diskIO().execute(clearTasksRunnable);
+		}).subscribe(new Consumer<Integer>() {
+					@Override
+					public void accept(Integer integer) throws Exception {
+						Timber.i("clearCompletedTasks count = %s", integer);
+					}
+				});
 	}
 	
 	@Override
@@ -158,25 +134,28 @@ public class TasksLocalDataSource implements TasksDataSource {
 	
 	@Override
 	public void deleteAllTasks() {
-		Runnable deleteRunnable = new Runnable() {
-			@Override
-			public void run() {
-				mTasksDao.deleteTasks();
-			}
-		};
-		
-		mAppExecutors.diskIO().execute(deleteRunnable);
+		Disposable deleteAllTasks_complete = mTasksDao.deleteTasks()
+				.subscribe(new Action() {
+					@Override
+					public void run() throws Exception {
+						Timber.i("deleteAllTasks complete");
+					}
+				});
 	}
 	
 	@Override
 	public void deleteTask(@NonNull final String taskId) {
-		Runnable deleteRunnable = new Runnable() {
+		Disposable subscribe = Observable.create(new ObservableOnSubscribe<Integer>() {
 			@Override
-			public void run() {
-				mTasksDao.deleteTaskById(taskId);
+			public void subscribe(ObservableEmitter<Integer> emitter) throws Exception {
+				int i = mTasksDao.deleteTaskById(taskId);
+				emitter.onNext(i);
 			}
-		};
-		
-		mAppExecutors.diskIO().execute(deleteRunnable);
+		}).subscribe(new Consumer<Integer>() {
+					@Override
+					public void accept(Integer integer) throws Exception {
+						Timber.i("deleteTask count = %s", integer);
+					}
+				});
 	}
 }

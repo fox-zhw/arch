@@ -8,13 +8,23 @@ import androidx.annotation.NonNull;
 import com.qthy.arch.data.Task;
 import com.qthy.arch.data.source.TasksDataSource;
 
+import org.reactivestreams.Publisher;
+
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import javax.inject.Inject;
 
+import io.reactivex.Flowable;
+import io.reactivex.FlowableTransformer;
+import io.reactivex.Observable;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.functions.Function;
+import io.reactivex.schedulers.Schedulers;
 import timber.log.Timber;
 
 /**
@@ -53,15 +63,19 @@ public class TasksRemoteDataSource implements TasksDataSource {
 	 * returns an error.
 	 */
 	@Override
-	public void getTasks(final @NonNull LoadTasksCallback callback) {
-		// Simulate network by delaying the execution.
-		Handler handler = new Handler();
-		handler.postDelayed(new Runnable() {
+	public Flowable<List<Task>> getTasks() {
+		return Flowable.timer(2, TimeUnit.SECONDS).compose(new FlowableTransformer<Long, List<Task>>() {
 			@Override
-			public void run() {
-				callback.onTasksLoaded(new ArrayList<>(TASKS_SERVICE_DATA.values()));
+			public Publisher<List<Task>> apply(Flowable<Long> upstream) {
+				return upstream.map(new Function<Long, List<Task>>() {
+					@Override
+					public List<Task> apply(Long aLong) throws Exception {
+						return new ArrayList<>(TASKS_SERVICE_DATA.values());
+					}
+				}).subscribeOn(Schedulers.io())
+						.observeOn(AndroidSchedulers.mainThread());
 			}
-		}, SERVICE_LATENCY_IN_MILLIS);
+		});
 	}
 	
 	/**

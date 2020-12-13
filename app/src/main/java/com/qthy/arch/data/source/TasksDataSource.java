@@ -7,6 +7,8 @@ import com.qthy.arch.data.Task;
 
 import java.util.List;
 
+import io.reactivex.Flowable;
+
 /**
  * @author zhaohw
  * @date 2020/12/2
@@ -27,7 +29,7 @@ public interface TasksDataSource {
 		void onDataNotAvailable();
 	}
 	
-	void getTasks(@NonNull LoadTasksCallback callback);
+	Flowable<List<Task>> getTasks();
 	
 	void getTask(@NonNull String taskId, @NonNull GetTaskCallback callback);
 	

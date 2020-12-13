@@ -5,6 +5,8 @@ import androidx.annotation.Nullable;
 
 import com.qthy.arch.data.Task;
 
+import org.reactivestreams.Publisher;
+
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -13,6 +15,8 @@ import java.util.Map;
 
 import javax.inject.Inject;
 
+import io.reactivex.Flowable;
+import io.reactivex.functions.Function;
 import timber.log.Timber;
 
 /**
@@ -53,30 +57,34 @@ public class TasksRepository implements TasksDataSource {
 	 * get the data.
 	 */
 	@Override
-	public void getTasks(@NonNull final LoadTasksCallback callback) {
+	public Flowable<List<Task>> getTasks() {
 		
 		// Respond immediately with cache if available and not dirty
 		if (mCachedTasks != null && !mCacheIsDirty) {
-			callback.onTasksLoaded(new ArrayList<>(mCachedTasks.values()));
-			return;
+			return Flowable.just(new ArrayList<>(mCachedTasks.values()));
 		}
 		
 		if (mCacheIsDirty) {
 			// If the cache is dirty we need to fetch new data from the network.
-			getTasksFromRemoteDataSource(callback);
+			return mTasksRemoteDataSource.getTasks().map(new Function<List<Task>, List<Task>>() {
+				@Override
+				public List<Task> apply(List<Task> tasks) throws Exception {
+					refreshCache(tasks);
+					refreshLocalDataSource(tasks);
+					return new ArrayList<>(mCachedTasks.values());
+				}
+			});
 		} else {
 			// Query the local storage if available. If not, query the network.
-			mTasksLocalDataSource.getTasks(new LoadTasksCallback() {
+			return mTasksLocalDataSource.getTasks().switchMap(new Function<List<Task>, Publisher<List<Task>>>() {
 				@Override
-				public void onTasksLoaded(List<Task> tasks) {
-					refreshCache(tasks);
-					
-					callback.onTasksLoaded(new ArrayList<>(mCachedTasks.values()));
-				}
-				
-				@Override
-				public void onDataNotAvailable() {
-					getTasksFromRemoteDataSource(callback);
+				public Publisher<List<Task>> apply(List<Task> tasks) throws Exception {
+					if (tasks.isEmpty()) {
+						return mTasksRemoteDataSource.getTasks();
+					} else {
+						refreshCache(tasks);
+						return Flowable.just(new ArrayList<>(mCachedTasks.values()));
+					}
 				}
 			});
 		}
@@ -233,24 +241,6 @@ public class TasksRepository implements TasksDataSource {
 		mTasksLocalDataSource.deleteTask(taskId);
 		
 		mCachedTasks.remove(taskId);
-	}
-	
-	private void getTasksFromRemoteDataSource(@NonNull final LoadTasksCallback callback) {
-		mTasksRemoteDataSource.getTasks(new LoadTasksCallback() {
-			@Override
-			public void onTasksLoaded(List<Task> tasks) {
-				refreshCache(tasks);
-				refreshLocalDataSource(tasks);
-				
-				callback.onTasksLoaded(new ArrayList<>(mCachedTasks.values()));
-			}
-			
-			@Override
-			public void onDataNotAvailable() {
-				
-				callback.onDataNotAvailable();
-			}
-		});
 	}
 	
 	private void refreshCache(List<Task> tasks) {

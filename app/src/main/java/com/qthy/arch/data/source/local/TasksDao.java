@@ -10,6 +10,9 @@ import com.qthy.arch.data.Task;
 
 import java.util.List;
 
+import io.reactivex.Completable;
+import io.reactivex.Flowable;
+
 /**
  * @author zhaohw
  * @date 2020/12/2
@@ -24,7 +27,7 @@ interface TasksDao {
 	 * @return all tasks.
 	 */
 	@Query("SELECT * FROM Tasks")
-	List<Task> getTasks();
+	Flowable<List<Task>> getTasks();
 	
 	/**
 	 * Select a task by id.
@@ -33,7 +36,7 @@ interface TasksDao {
 	 * @return the task with taskId.
 	 */
 	@Query("SELECT * FROM Tasks WHERE entryid = :taskId")
-	Task getTaskById(String taskId);
+	Flowable<Task> getTaskById(String taskId);
 	
 	/**
 	 * Insert a task in the database. If the task already exists, replace it.
@@ -41,7 +44,7 @@ interface TasksDao {
 	 * @param task the task to be inserted.
 	 */
 	@Insert(onConflict = OnConflictStrategy.REPLACE)
-	void insertTask(Task task);
+	Completable insertTask(Task task);
 	
 	/**
 	 * Update a task.
@@ -59,7 +62,7 @@ interface TasksDao {
 	 * @param completed status to be updated
 	 */
 	@Query("UPDATE tasks SET completed = :completed WHERE entryid = :taskId")
-	void updateCompleted(String taskId, boolean completed);
+	Completable updateCompleted(String taskId, boolean completed);
 	
 	/**
 	 * Delete a task by id.
@@ -73,7 +76,7 @@ interface TasksDao {
 	 * Delete all tasks.
 	 */
 	@Query("DELETE FROM Tasks")
-	void deleteTasks();
+	Completable deleteTasks();
 	
 	/**
 	 * Delete all completed tasks from the table.

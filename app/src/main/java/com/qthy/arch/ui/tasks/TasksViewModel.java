@@ -7,19 +7,20 @@ import androidx.hilt.lifecycle.ViewModelInject;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.Transformations;
-import androidx.lifecycle.ViewModel;
 
 import com.qthy.arch.Event;
 import com.qthy.arch.MainActivity;
 import com.qthy.arch.R;
+import com.qthy.arch.base.BaseViewModel;
 import com.qthy.arch.data.Task;
-import com.qthy.arch.data.source.TasksDataSource;
 import com.qthy.arch.data.source.TasksRepository;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class TasksViewModel extends ViewModel {
+import io.reactivex.functions.Consumer;
+
+public class TasksViewModel extends BaseViewModel {
 	
 	final MutableLiveData<List<Task>> mItems = new MutableLiveData<>();
 	
@@ -122,50 +123,48 @@ public class TasksViewModel extends ViewModel {
 			mDataLoading.setValue(true);
 		}
 		if (forceUpdate) {
-			
 			mTasksRepository.refreshTasks();
 		}
 		
-		mTasksRepository.getTasks(new TasksDataSource.LoadTasksCallback() {
+		addDisposable(mTasksRepository.getTasks(), new Consumer<List<Task>>() {
 			@Override
-			public void onTasksLoaded(List<Task> tasks) {
-				List<Task> tasksToShow = new ArrayList<>();
-				
-				// We filter the tasks based on the requestType
-				for (Task task : tasks) {
-					switch (mCurrentFiltering) {
-						case ALL_TASKS:
-							tasksToShow.add(task);
-							break;
-						case ACTIVE_TASKS:
-							if (task.isActive()) {
+			public void accept(List<Task> tasks) throws Exception {
+				if (tasks.isEmpty()) {
+					mDataLoading.setValue(false);
+					mIsDataLoadingError.setValue(true);
+				} else {
+					List<Task> tasksToShow = new ArrayList<>();
+					
+					// We filter the tasks based on the requestType
+					for (Task task : tasks) {
+						switch (mCurrentFiltering) {
+							case ALL_TASKS:
 								tasksToShow.add(task);
-							}
-							break;
-						case COMPLETED_TASKS:
-							if (task.isCompleted()) {
+								break;
+							case ACTIVE_TASKS:
+								if (task.isActive()) {
+									tasksToShow.add(task);
+								}
+								break;
+							case COMPLETED_TASKS:
+								if (task.isCompleted()) {
+									tasksToShow.add(task);
+								}
+								break;
+							default:
 								tasksToShow.add(task);
-							}
-							break;
-						default:
-							tasksToShow.add(task);
-							break;
+								break;
+						}
 					}
-				}
-				if (showLoadingUI) {
+					if (showLoadingUI) {
+						mDataLoading.setValue(false);
+					}
+					mIsDataLoadingError.setValue(false);
+					
+					List<Task> itemsValue = new ArrayList<>(tasksToShow);
+					mItems.setValue(itemsValue);
 					mDataLoading.setValue(false);
 				}
-				mIsDataLoadingError.setValue(false);
-				
-				List<Task> itemsValue = new ArrayList<>(tasksToShow);
-				mItems.setValue(itemsValue);
-				mDataLoading.setValue(false);
-			}
-			
-			@Override
-			public void onDataNotAvailable() {
-				mDataLoading.setValue(false);
-				mIsDataLoadingError.setValue(true);
 			}
 		});
 	}
