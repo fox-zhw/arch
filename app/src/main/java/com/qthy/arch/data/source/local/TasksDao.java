@@ -27,7 +27,7 @@ interface TasksDao {
 	 * @return all tasks.
 	 */
 	@Query("SELECT * FROM Tasks")
-	Flowable<List<Task>> getTasks();
+	List<Task> getTasks();
 	
 	/**
 	 * Select a task by id.
@@ -36,7 +36,7 @@ interface TasksDao {
 	 * @return the task with taskId.
 	 */
 	@Query("SELECT * FROM Tasks WHERE entryid = :taskId")
-	Flowable<Task> getTaskById(String taskId);
+	Task getTaskById(String taskId);
 	
 	/**
 	 * Insert a task in the database. If the task already exists, replace it.
@@ -44,7 +44,7 @@ interface TasksDao {
 	 * @param task the task to be inserted.
 	 */
 	@Insert(onConflict = OnConflictStrategy.REPLACE)
-	Completable insertTask(Task task);
+	void insertTask(Task task);
 	
 	/**
 	 * Update a task.
@@ -62,7 +62,7 @@ interface TasksDao {
 	 * @param completed status to be updated
 	 */
 	@Query("UPDATE tasks SET completed = :completed WHERE entryid = :taskId")
-	Completable updateCompleted(String taskId, boolean completed);
+	void updateCompleted(String taskId, boolean completed);
 	
 	/**
 	 * Delete a task by id.
@@ -76,7 +76,7 @@ interface TasksDao {
 	 * Delete all tasks.
 	 */
 	@Query("DELETE FROM Tasks")
-	Completable deleteTasks();
+	void deleteTasks();
 	
 	/**
 	 * Delete all completed tasks from the table.

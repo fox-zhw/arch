@@ -7,6 +7,7 @@ import com.qthy.arch.data.Task;
 
 import java.util.List;
 
+import io.reactivex.Completable;
 import io.reactivex.Flowable;
 
 /**
@@ -31,23 +32,23 @@ public interface TasksDataSource {
 	
 	Flowable<List<Task>> getTasks();
 	
-	void getTask(@NonNull String taskId, @NonNull GetTaskCallback callback);
+	Flowable<Task> getTask(@NonNull String taskId);
 	
-	void saveTask(@NonNull Task task);
+	Completable saveTask(@NonNull Task task);
 	
-	void completeTask(@NonNull Task task);
+	Completable completeTask(@NonNull Task task);
 	
 	void completeTask(@NonNull String taskId);
 	
-	void activateTask(@NonNull Task task);
+	Completable activateTask(@NonNull Task task);
 	
 	void activateTask(@NonNull String taskId);
 	
-	void clearCompletedTasks();
+	Flowable<Integer> clearCompletedTasks();
 	
 	void refreshTasks();
 	
-	void deleteAllTasks();
+	Completable deleteAllTasks();
 	
-	void deleteTask(@NonNull String taskId);
+	Flowable<Integer> deleteTask(@NonNull String taskId);
 }

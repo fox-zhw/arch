@@ -1,9 +1,6 @@
 package com.qthy.arch.data.source.remote;
 
-import android.os.Handler;
-
 import androidx.annotation.NonNull;
-
 
 import com.qthy.arch.data.Task;
 import com.qthy.arch.data.source.TasksDataSource;
@@ -15,16 +12,17 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 import javax.inject.Inject;
 
+import io.reactivex.Completable;
+import io.reactivex.CompletableEmitter;
+import io.reactivex.CompletableOnSubscribe;
 import io.reactivex.Flowable;
 import io.reactivex.FlowableTransformer;
-import io.reactivex.Observable;
-import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.functions.Function;
-import io.reactivex.schedulers.Schedulers;
 import timber.log.Timber;
 
 /**
@@ -64,7 +62,8 @@ public class TasksRemoteDataSource implements TasksDataSource {
 	 */
 	@Override
 	public Flowable<List<Task>> getTasks() {
-		return Flowable.timer(2, TimeUnit.SECONDS).compose(new FlowableTransformer<Long, List<Task>>() {
+		Timber.i("getTasks: ");
+		return Flowable.timer(SERVICE_LATENCY_IN_MILLIS, TimeUnit.MILLISECONDS).compose(new FlowableTransformer<Long, List<Task>>() {
 			@Override
 			public Publisher<List<Task>> apply(Flowable<Long> upstream) {
 				return upstream.map(new Function<Long, List<Task>>() {
@@ -72,8 +71,7 @@ public class TasksRemoteDataSource implements TasksDataSource {
 					public List<Task> apply(Long aLong) throws Exception {
 						return new ArrayList<>(TASKS_SERVICE_DATA.values());
 					}
-				}).subscribeOn(Schedulers.io())
-						.observeOn(AndroidSchedulers.mainThread());
+				});
 			}
 		});
 	}
@@ -84,28 +82,45 @@ public class TasksRemoteDataSource implements TasksDataSource {
 	 * returns an error.
 	 */
 	@Override
-	public void getTask(@NonNull String taskId, final @NonNull GetTaskCallback callback) {
+	public Flowable<Task> getTask(@NonNull String taskId) {
+		Timber.i("getTask: %s", taskId);
 		final Task task = TASKS_SERVICE_DATA.get(taskId);
-		
 		// Simulate network by delaying the execution.
-		Handler handler = new Handler();
-		handler.postDelayed(new Runnable() {
+		return Flowable.timer(SERVICE_LATENCY_IN_MILLIS, TimeUnit.MILLISECONDS).compose(new FlowableTransformer<Long, Task>() {
+			@Override
+			public Publisher<Task> apply(Flowable<Long> upstream) {
+				return upstream.map(new Function<Long, Task>() {
+					@Override
+					public Task apply(Long aLong) throws Exception {
+						return task;
+					}
+				});
+			}
+		});
+	}
+	
+	@Override
+	public Completable saveTask(@NonNull Task task) {
+		Timber.i("saveTask: %s", task);
+		return Completable.create(new CompletableOnSubscribe() {
+			@Override
+			public void subscribe(CompletableEmitter emitter) throws Exception {
+				TASKS_SERVICE_DATA.put(task.getId(), task);
+				emitter.onComplete();
+			}
+		});
+	}
+	
+	@Override
+	public Completable completeTask(@NonNull Task task) {
+		Timber.i("completeTask: %s", task);
+		return Completable.fromRunnable(new Runnable() {
 			@Override
 			public void run() {
-				callback.onTaskLoaded(task);
+				Task completedTask = new Task(task.getTitle(), task.getDescription(), true, task.getId());
+				TASKS_SERVICE_DATA.put(task.getId(), completedTask);
 			}
-		}, SERVICE_LATENCY_IN_MILLIS);
-	}
-	
-	@Override
-	public void saveTask(@NonNull Task task) {
-		TASKS_SERVICE_DATA.put(task.getId(), task);
-	}
-	
-	@Override
-	public void completeTask(@NonNull Task task) {
-		Task completedTask = new Task(task.getTitle(), task.getDescription(), true, task.getId());
-		TASKS_SERVICE_DATA.put(task.getId(), completedTask);
+		});
 	}
 	
 	@Override
@@ -115,9 +130,15 @@ public class TasksRemoteDataSource implements TasksDataSource {
 	}
 	
 	@Override
-	public void activateTask(@NonNull Task task) {
-		Task activeTask = new Task(task.getTitle(), task.getDescription(), task.getId());
-		TASKS_SERVICE_DATA.put(task.getId(), activeTask);
+	public Completable activateTask(@NonNull Task task) {
+		Timber.i("activateTask: %s", task);
+		return Completable.fromRunnable(new Runnable() {
+			@Override
+			public void run() {
+				Task activeTask = new Task(task.getTitle(), task.getDescription(), task.getId());
+				TASKS_SERVICE_DATA.put(task.getId(), activeTask);
+			}
+		});
 	}
 	
 	@Override
@@ -127,14 +148,23 @@ public class TasksRemoteDataSource implements TasksDataSource {
 	}
 	
 	@Override
-	public void clearCompletedTasks() {
-		Iterator<Map.Entry<String, Task>> it = TASKS_SERVICE_DATA.entrySet().iterator();
-		while (it.hasNext()) {
-			Map.Entry<String, Task> entry = it.next();
-			if (entry.getValue().isCompleted()) {
-				it.remove();
+	public Flowable<Integer> clearCompletedTasks() {
+		Timber.i("clearCompletedTasks: ");
+		return Flowable.fromCallable(new Callable<Integer>() {
+			@Override
+			public Integer call() throws Exception {
+				int count = 0;
+				Iterator<Map.Entry<String, Task>> it = TASKS_SERVICE_DATA.entrySet().iterator();
+				while (it.hasNext()) {
+					Map.Entry<String, Task> entry = it.next();
+					if (entry.getValue().isCompleted()) {
+						it.remove();
+						count++;
+					}
+				}
+				return count;
 			}
-		}
+		});
 	}
 	
 	@Override
@@ -144,12 +174,25 @@ public class TasksRemoteDataSource implements TasksDataSource {
 	}
 	
 	@Override
-	public void deleteAllTasks() {
-		TASKS_SERVICE_DATA.clear();
+	public Completable deleteAllTasks() {
+		Timber.i("deleteAllTasks: ");
+		return Completable.fromRunnable(new Runnable() {
+			@Override
+			public void run() {
+				TASKS_SERVICE_DATA.clear();
+			}
+		});
 	}
 	
 	@Override
-	public void deleteTask(@NonNull String taskId) {
-		TASKS_SERVICE_DATA.remove(taskId);
+	public Flowable<Integer> deleteTask(@NonNull String taskId) {
+		Timber.i("deleteTask: %s", taskId);
+		return Flowable.fromCallable(new Callable<Integer>() {
+			@Override
+			public Integer call() throws Exception {
+				TASKS_SERVICE_DATA.remove(taskId);
+				return 1;
+			}
+		});
 	}
 }

@@ -18,7 +18,9 @@ import com.qthy.arch.data.source.TasksRepository;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.reactivex.functions.Action;
 import io.reactivex.functions.Consumer;
+import timber.log.Timber;
 
 public class TasksViewModel extends BaseViewModel {
 	
@@ -88,20 +90,34 @@ public class TasksViewModel extends BaseViewModel {
 	}
 	
 	public void clearCompletedTasks() {
-		mTasksRepository.clearCompletedTasks();
-		mSnackbarText.setValue(new Event<>(R.string.completed_tasks_cleared));
-		loadTasks(false, false);
+		addDisposable(mTasksRepository.clearCompletedTasks(), new Consumer<Integer>() {
+			@Override
+			public void accept(Integer integer) throws Exception {
+				Timber.i("clearCompletedTasks: success");
+				mSnackbarText.setValue(new Event<>(R.string.completed_tasks_cleared));
+				loadTasks(false, false);
+			}
+		});
 	}
 	
 	public void completeTask(Task task) {
-		mTasksRepository.completeTask(task);
-		mSnackbarText.setValue(new Event<>(R.string.task_marked_complete));
-		
+		addDisposable(mTasksRepository.completeTask(task), new Action() {
+			@Override
+			public void run() throws Exception {
+				Timber.i("completeTask: success");
+				mSnackbarText.setValue(new Event<>(R.string.task_marked_complete));
+			}
+		});
 	}
 	
 	public void activateTask(Task task) {
-		mTasksRepository.activateTask(task);
-		mSnackbarText.setValue(new Event<>(R.string.task_marked_active));
+		addDisposable(mTasksRepository.activateTask(task), new Action() {
+			@Override
+			public void run() throws Exception {
+				Timber.i("activateTask: success");
+				mSnackbarText.setValue(new Event<>(R.string.task_marked_active));
+			}
+		});
 	}
 	
 	/**
@@ -126,9 +142,11 @@ public class TasksViewModel extends BaseViewModel {
 			mTasksRepository.refreshTasks();
 		}
 		
+		Timber.i("loadTasks: ");
 		addDisposable(mTasksRepository.getTasks(), new Consumer<List<Task>>() {
 			@Override
 			public void accept(List<Task> tasks) throws Exception {
+				Timber.i("loadTasks: %s", tasks.size());
 				if (tasks.isEmpty()) {
 					mDataLoading.setValue(false);
 					mIsDataLoadingError.setValue(true);

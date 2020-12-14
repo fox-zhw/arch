@@ -8,11 +8,16 @@ import androidx.lifecycle.ViewModel;
 import com.qthy.arch.Event;
 import com.qthy.arch.MainActivity;
 import com.qthy.arch.R;
+import com.qthy.arch.base.BaseViewModel;
 import com.qthy.arch.data.Task;
 import com.qthy.arch.data.source.TasksDataSource;
 import com.qthy.arch.data.source.TasksRepository;
 
-public class AddEditTaskViewModel extends ViewModel {
+import io.reactivex.functions.Action;
+import io.reactivex.functions.Consumer;
+import timber.log.Timber;
+
+public class AddEditTaskViewModel extends BaseViewModel {
 	
 	// Two-way databinding, exposing MutableLiveData
 	final MutableLiveData<String> title = new MutableLiveData<>();
@@ -60,19 +65,19 @@ public class AddEditTaskViewModel extends ViewModel {
 		mIsNewTask = false;
 		dataLoading.setValue(true);
 		
-		mTasksRepository.getTask(taskId, new TasksDataSource.GetTaskCallback() {
+		addDisposable(mTasksRepository.getTask(taskId), new Consumer<Task>() {
 			@Override
-			public void onTaskLoaded(Task task) {
-				title.setValue(task.getTitle());
-				description.setValue(task.getDescription());
-				mTaskCompleted = task.isCompleted();
-				dataLoading.setValue(false);
-				mIsDataLoaded = true;
-			}
-			
-			@Override
-			public void onDataNotAvailable() {
-				dataLoading.setValue(false);
+			public void accept(Task task) throws Exception {
+				Timber.i("start: success");
+				if (task != null) {
+					title.setValue(task.getTitle());
+					description.setValue(task.getDescription());
+					mTaskCompleted = task.isCompleted();
+					dataLoading.setValue(false);
+					mIsDataLoaded = true;
+				} else {
+					dataLoading.setValue(false);
+				}
 			}
 		});
 	}
@@ -97,15 +102,25 @@ public class AddEditTaskViewModel extends ViewModel {
 	}
 	
 	private void createTask(Task newTask) {
-		mTasksRepository.saveTask(newTask);
-		mTaskUpdated.setValue(new Event<>(MainActivity.ADD_EDIT_RESULT_OK));
+		addDisposable(mTasksRepository.saveTask(newTask), new Action() {
+			@Override
+			public void run() throws Exception {
+				Timber.i("createTask: success");
+				mTaskUpdated.setValue(new Event<>(MainActivity.ADD_EDIT_RESULT_OK));
+			}
+		});
 	}
 	
 	private void updateTask(Task task) {
 		if (isNewTask()) {
 			throw new RuntimeException("updateTask() was called but task is new.");
 		}
-		mTasksRepository.saveTask(task);
-		mTaskUpdated.setValue(new Event<>(MainActivity.EDIT_RESULT_OK));
+		addDisposable(mTasksRepository.saveTask(task), new Action() {
+			@Override
+			public void run() throws Exception {
+				Timber.i("updateTask: success");
+				mTaskUpdated.setValue(new Event<>(MainActivity.EDIT_RESULT_OK));
+			}
+		});
 	}
 }

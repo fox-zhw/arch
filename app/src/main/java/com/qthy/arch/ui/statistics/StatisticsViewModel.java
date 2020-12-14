@@ -13,6 +13,7 @@ import java.util.List;
 
 import io.reactivex.disposables.Disposable;
 import io.reactivex.functions.Consumer;
+import timber.log.Timber;
 
 public class StatisticsViewModel extends BaseViewModel {
 	
@@ -48,6 +49,7 @@ public class StatisticsViewModel extends BaseViewModel {
 		addDisposable(mTasksRepository.getTasks(), new Consumer<List<Task>>() {
 			@Override
 			public void accept(List<Task> tasks) throws Exception {
+				Timber.i("loadStatistics: success");
 				if (tasks.isEmpty()) {
 					mError.setValue(true);
 					mNumberOfActiveTasks = 0;

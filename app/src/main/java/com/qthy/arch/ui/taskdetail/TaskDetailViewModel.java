@@ -7,15 +7,18 @@ import androidx.hilt.lifecycle.ViewModelInject;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.Transformations;
-import androidx.lifecycle.ViewModel;
 
 import com.qthy.arch.Event;
 import com.qthy.arch.R;
+import com.qthy.arch.base.BaseViewModel;
 import com.qthy.arch.data.Task;
-import com.qthy.arch.data.source.TasksDataSource;
 import com.qthy.arch.data.source.TasksRepository;
 
-public class TaskDetailViewModel extends ViewModel {
+import io.reactivex.functions.Action;
+import io.reactivex.functions.Consumer;
+import timber.log.Timber;
+
+public class TaskDetailViewModel extends BaseViewModel {
 	
 	final MutableLiveData<Task> mTask = new MutableLiveData<>();
 	
@@ -46,37 +49,18 @@ public class TaskDetailViewModel extends ViewModel {
 	
 	public void deleteTask() {
 		if (mTask.getValue() != null) {
-			mTasksRepository.deleteTask(mTask.getValue().getId());
-			mDeleteTaskCommand.setValue(new Event<>(new Object()));
+			addDisposable(mTasksRepository.deleteTask(mTask.getValue().getId()), new Consumer<Integer>() {
+				@Override
+				public void accept(Integer integer) throws Exception {
+					Timber.i("deleteTask: success");
+					mDeleteTaskCommand.setValue(new Event<>(new Object()));
+				}
+			});
 		}
 	}
 	
 	public void editTask() {
 		mEditTaskCommand.setValue(new Event<>(new Object()));
-	}
-	
-	public LiveData<Event<Integer>> getSnackbarMessage() {
-		return mSnackbarText;
-	}
-	
-	public MutableLiveData<Event<Object>> getEditTaskCommand() {
-		return mEditTaskCommand;
-	}
-	
-	public MutableLiveData<Event<Object>> getDeleteTaskCommand() {
-		return mDeleteTaskCommand;
-	}
-	
-	public LiveData<Task> getTask() {
-		return mTask;
-	}
-	
-	public LiveData<Boolean> getIsDataAvailable() {
-		return mIsDataAvailable;
-	}
-	
-	public LiveData<Boolean> getDataLoading() {
-		return mDataLoading;
 	}
 	
 	public void setCompleted(boolean completed) {
@@ -85,29 +69,39 @@ public class TaskDetailViewModel extends ViewModel {
 		}
 		Task task = this.mTask.getValue();
 		if (completed) {
-			mTasksRepository.completeTask(task);
-			showSnackbarMessage(R.string.task_marked_complete);
+			addDisposable(mTasksRepository.completeTask(task), new Action() {
+				@Override
+				public void run() throws Exception {
+					Timber.i("setCompleted: completeTask success");
+					showSnackbarMessage(R.string.task_marked_complete);
+				}
+			});
 		} else {
-			mTasksRepository.activateTask(task);
-			showSnackbarMessage(R.string.task_marked_active);
+			addDisposable(mTasksRepository.activateTask(task), new Action() {
+				@Override
+				public void run() throws Exception {
+					Timber.i("setCompleted: activateTask success");
+					showSnackbarMessage(R.string.task_marked_active);
+				}
+			});
 		}
 	}
 	
 	public void start(String taskId) {
 		if (taskId != null) {
 			mDataLoading.setValue(true);
-			mTasksRepository.getTask(taskId, new TasksDataSource.GetTaskCallback() {
+			
+			addDisposable(mTasksRepository.getTask(taskId), new Consumer<Task>() {
 				@Override
-				public void onTaskLoaded(Task task) {
-					setTask(task);
-					mDataLoading.setValue(false);
-				}
-				
-				@Override
-				public void onDataNotAvailable() {
-					mTask.setValue(null);
-					mDataLoading.setValue(false);
-					mIsDataAvailable.setValue(false);
+				public void accept(Task task) throws Exception {
+					if (task != null) {
+						setTask(task);
+						mDataLoading.setValue(false);
+					} else {
+						mTask.setValue(null);
+						mDataLoading.setValue(false);
+						mIsDataAvailable.setValue(false);
+					}
 				}
 			});
 		}

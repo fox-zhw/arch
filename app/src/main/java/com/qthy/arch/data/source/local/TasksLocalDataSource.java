@@ -1,22 +1,34 @@
 package com.qthy.arch.data.source.local;
 
+import android.annotation.SuppressLint;
+
 import androidx.annotation.NonNull;
 
 import com.qthy.arch.data.Task;
 import com.qthy.arch.data.source.TasksDataSource;
 import com.qthy.arch.util.RxUtils;
 
+import org.reactivestreams.Publisher;
+
 import java.util.List;
 
 import javax.inject.Inject;
 
+import io.reactivex.BackpressureStrategy;
+import io.reactivex.Completable;
+import io.reactivex.CompletableEmitter;
+import io.reactivex.CompletableOnSubscribe;
 import io.reactivex.Flowable;
+import io.reactivex.FlowableEmitter;
+import io.reactivex.FlowableOnSubscribe;
 import io.reactivex.Observable;
 import io.reactivex.ObservableEmitter;
 import io.reactivex.ObservableOnSubscribe;
 import io.reactivex.disposables.Disposable;
 import io.reactivex.functions.Action;
 import io.reactivex.functions.Consumer;
+import io.reactivex.functions.Function;
+import kotlinx.coroutines.flow.Flow;
 import timber.log.Timber;
 
 /**
@@ -40,7 +52,18 @@ public class TasksLocalDataSource implements TasksDataSource {
 	 */
 	@Override
 	public Flowable<List<Task>> getTasks() {
-		return mTasksDao.getTasks();
+		Timber.i("getTasks: ");
+		return Flowable.create(new FlowableOnSubscribe<List<Task>>() {
+			@SuppressLint("CheckResult")
+			@Override
+			public void subscribe(FlowableEmitter<List<Task>> emitter) throws Exception {
+				List<Task> tasks = mTasksDao.getTasks();
+				if (!emitter.isCancelled()) {
+					emitter.onNext(tasks);
+				}
+				emitter.onComplete();
+			}
+		}, BackpressureStrategy.LATEST);
 	}
 	
 	/**
@@ -48,42 +71,43 @@ public class TasksLocalDataSource implements TasksDataSource {
 	 * found.
 	 */
 	@Override
-	public void getTask(@NonNull final String taskId, @NonNull final GetTaskCallback callback) {
-		Disposable subscribe = mTasksDao.getTaskById(taskId)
-				.subscribe(new Consumer<Task>() {
-					@Override
-					public void accept(Task task) throws Exception {
-						if (task != null) {
-							callback.onTaskLoaded(task);
-						} else {
-							callback.onDataNotAvailable();
-						}
-					}
-				});
+	public Flowable<Task> getTask(@NonNull String taskId) {
+		Timber.i("getTask: %s", taskId);
+		return Flowable.just(taskId).flatMap(new Function<String, Publisher<Task>>() {
+			@Override
+			public Publisher<Task> apply(String s) throws Exception {
+				Task taskById = mTasksDao.getTaskById(s);
+				return Flowable.just(taskById);
+			}
+		});
 	}
 	
 	@Override
-	public void saveTask(@NonNull final Task task) {
-		Disposable subscribe = mTasksDao.insertTask(task)
-				.subscribe(new Action() {
-					@Override
-					public void run() throws Exception {
-						// complete
-						Timber.i("saveTask complete");
-					}
-				});
+	public Completable saveTask(@NonNull final Task task) {
+		Timber.i("saveTask: %s", task);
+		return Completable.create(new CompletableOnSubscribe() {
+			@Override
+			public void subscribe(CompletableEmitter emitter) throws Exception {
+				mTasksDao.insertTask(task);
+				if (!emitter.isDisposed()) {
+					emitter.onComplete();
+				}
+			}
+		});
 	}
 	
 	@Override
-	public void completeTask(@NonNull final Task task) {
-		Disposable subscribe = mTasksDao.updateCompleted(task.getId(), true)
-				.subscribe(new Action() {
-					@Override
-					public void run() throws Exception {
-						// complete
-						Timber.i("completeTask complete");
-					}
-				});
+	public Completable completeTask(@NonNull final Task task) {
+		Timber.i("completeTask: %s", task);
+		return Completable.create(new CompletableOnSubscribe() {
+			@Override
+			public void subscribe(CompletableEmitter emitter) throws Exception {
+				mTasksDao.updateCompleted(task.getId(), true);
+				if (!emitter.isDisposed()) {
+					emitter.onComplete();
+				}
+			}
+		});
 	}
 	
 	@Override
@@ -93,15 +117,17 @@ public class TasksLocalDataSource implements TasksDataSource {
 	}
 	
 	@Override
-	public void activateTask(@NonNull final Task task) {
-		Disposable subscribe = mTasksDao.updateCompleted(task.getId(), false)
-				.subscribe(new Action() {
-					@Override
-					public void run() throws Exception {
-						// complete
-						Timber.i("activateTask complete");
-					}
-				});
+	public Completable activateTask(@NonNull final Task task) {
+		Timber.i("activateTask: %s", task);
+		return Completable.create(new CompletableOnSubscribe() {
+			@Override
+			public void subscribe(CompletableEmitter emitter) throws Exception {
+				mTasksDao.updateCompleted(task.getId(), false);
+				if (!emitter.isDisposed()) {
+					emitter.onComplete();
+				}
+			}
+		});
 	}
 	
 	@Override
@@ -111,19 +137,14 @@ public class TasksLocalDataSource implements TasksDataSource {
 	}
 	
 	@Override
-	public void clearCompletedTasks() {
-		Disposable subscribe = Observable.create(new ObservableOnSubscribe<Integer>() {
+	public Flowable<Integer> clearCompletedTasks() {
+		Timber.i("clearCompletedTasks: ");
+		return Flowable.just(0).map(new Function<Integer, Integer>() {
 			@Override
-			public void subscribe(ObservableEmitter<Integer> emitter) throws Exception {
-				int i = mTasksDao.deleteCompletedTasks();
-				emitter.onNext(i);
+			public Integer apply(Integer integer) throws Exception {
+				return mTasksDao.deleteCompletedTasks();
 			}
-		}).subscribe(new Consumer<Integer>() {
-					@Override
-					public void accept(Integer integer) throws Exception {
-						Timber.i("clearCompletedTasks count = %s", integer);
-					}
-				});
+		});
 	}
 	
 	@Override
@@ -133,29 +154,27 @@ public class TasksLocalDataSource implements TasksDataSource {
 	}
 	
 	@Override
-	public void deleteAllTasks() {
-		Disposable deleteAllTasks_complete = mTasksDao.deleteTasks()
-				.subscribe(new Action() {
-					@Override
-					public void run() throws Exception {
-						Timber.i("deleteAllTasks complete");
-					}
-				});
+	public Completable deleteAllTasks() {
+		Timber.i("deleteAllTasks: ");
+		return Completable.create(new CompletableOnSubscribe() {
+			@Override
+			public void subscribe(CompletableEmitter emitter) throws Exception {
+				mTasksDao.deleteTasks();
+				if (!emitter.isDisposed()) {
+					emitter.onComplete();
+				}
+			}
+		});
 	}
 	
 	@Override
-	public void deleteTask(@NonNull final String taskId) {
-		Disposable subscribe = Observable.create(new ObservableOnSubscribe<Integer>() {
+	public Flowable<Integer> deleteTask(@NonNull final String taskId) {
+		Timber.i("deleteTask: %s", taskId);
+		return Flowable.just(0).map(new Function<Integer, Integer>() {
 			@Override
-			public void subscribe(ObservableEmitter<Integer> emitter) throws Exception {
-				int i = mTasksDao.deleteTaskById(taskId);
-				emitter.onNext(i);
+			public Integer apply(Integer integer) throws Exception {
+				return mTasksDao.deleteTaskById(taskId);
 			}
-		}).subscribe(new Consumer<Integer>() {
-					@Override
-					public void accept(Integer integer) throws Exception {
-						Timber.i("deleteTask count = %s", integer);
-					}
-				});
+		});
 	}
 }
