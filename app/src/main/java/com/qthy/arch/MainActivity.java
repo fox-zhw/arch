@@ -10,6 +10,7 @@ import androidx.navigation.Navigation;
 import androidx.navigation.ui.AppBarConfiguration;
 import androidx.navigation.ui.NavigationUI;
 
+import com.google.android.material.bottomnavigation.BottomNavigationView;
 import com.google.android.material.navigation.NavigationView;
 import com.qthy.arch.base.BaseActivity;
 
@@ -40,14 +41,11 @@ public class MainActivity extends BaseActivity {
 	
 	@Override
 	protected void initView(Bundle savedInstanceState) {
-		DrawerLayout drawer = findViewById(R.id.drawer_layout);
-		drawer.setStatusBarBackground(R.color.colorPrimaryDark);
-		NavigationView navigationView = findViewById(R.id.nav_view);
+		BottomNavigationView navigationView = findViewById(R.id.nav_view);
 		// Passing each menu ID as a set of Ids because each
 		// menu should be considered as top level destinations.
 		mAppBarConfiguration = new AppBarConfiguration.Builder(
 				R.id.tasksFragment, R.id.statisticsFragment)
-				.setDrawerLayout(drawer)
 				.build();
 		NavigationUI.setupActionBarWithNavController(this, navController, mAppBarConfiguration);
 		NavigationUI.setupWithNavController(navigationView, navController);
